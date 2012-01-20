@@ -1,13 +1,11 @@
 #!/usr/bin/env python
 
-import sys
 from cStringIO import StringIO
 
 from mrjob.protocol import JSONValueProtocol
 from mrjob.job import MRJob
-from mrjob.emr import parse_s3_uri
+from mrjob.emr import EMRJobRunner
 
-from boto.s3.connection import S3Connection
 from term_tools import get_terms
 
 class MRTFIDFBySender(MRJob):
@@ -33,13 +31,14 @@ class MRTFIDFBySender(MRJob):
     def reducer_init(self):
         self.idfs = {}
 
-        conn = S3Connection(self.options.aws_access_key_id,
-                            self.options.aws_secret_access_key)
-
         # Iterate through the files in the bucket provided by the user
-        bucket, folder = parse_s3_uri("s3://" + self.options.idf_loc)
-        for key in conn.get_bucket(bucket).list(folder):
+        if self.options.aws_access_key_id and self.options.aws_secret_access_key:
+            emr = EMRJobRunner(aws_access_key_id=self.options.aws_access_key_id,
+                               aws_secret_access_key=self.options.aws_secret_access_key)
+        else:
+            emr = EMRJobRunner()
 
+        for key in emr.get_s3_keys("s3://" + self.options.idf_loc):
             # Load the whole file first, then read it line-by-line: otherwise,
             # chunks may not be even lines
             for line in StringIO(key.get_contents_as_string()): 
